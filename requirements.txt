@@ -1,0 +1,11 @@
+streamlit
+google-generativeai
+python-dotenv
+langchain
+PyPDF2
+chromadb
+faiss-cpu
+langchain_google_genai
+pip install langchain-community==0.0.28 langchain-core==0.1.32
+pip install langsmith==0.0.63
+pip install spacy
