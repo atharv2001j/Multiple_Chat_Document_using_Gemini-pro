@@ -4,7 +4,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import os
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS  # Updated import statement
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
@@ -16,14 +16,12 @@ import fitz
 import pytesseract
 from PIL import Image
 import io
-import base64
-import fitz  # PyMuPDF
+
+import fitz
+import pytesseract
+from PIL import Image
 import cv2
 import numpy as np
-import spacy
-from scipy.spatial.distance import cityblock
-# Load the English language model for spaCy
-nlp = spacy.load("en_core_web_sm")
 
 pytesseract.pytesseract.tesseract_cmd = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
@@ -69,8 +67,15 @@ def load_and_clean_search_history():
 
     return new_history
 
-# Function to save the uploaded file
+
+# To save the file which we have uploaded on the 
 def save_uploaded_file(uploaded_file):
+    """
+    Saves the uploaded file to a specified directory.
+    
+    Args:
+    - uploaded_file: The uploaded file object from Streamlit.
+    """
     directory = "saved_files"  # Specify your directory name
     if not os.path.exists(directory):
         os.makedirs(directory)  # Create the directory if it does not exist
@@ -82,7 +87,6 @@ def save_uploaded_file(uploaded_file):
 
     return file_path
 
-# Function to extract text from PDF using OCR
 def extract_text_from_pdf_ocr(pdf_path):
     extracted_text = ""
     # Open PDF file
@@ -107,7 +111,6 @@ def extract_text_from_pdf_ocr(pdf_path):
     
     return extracted_text.strip()
 
-# Function to get text from various document types
 def get_document_text(files, use_ocr=False):
     text = ""
     for file in files:
@@ -134,6 +137,8 @@ def get_document_text(files, use_ocr=False):
             print(f"Skipping unsupported file format: {file.name}")
     return text
 
+
+
 def get_text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
     chunks = text_splitter.split_text(text)
@@ -144,173 +149,23 @@ def get_vector_store(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
+    
+# @st.cache_resource
+# def get_vector_store(text_chunks, file_name):
+#     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+#     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
+    
+#     # Specify the directory to save vectors for each file
+#     vectors_directory = "saved_vectors"
+#     if not os.path.exists(vectors_directory):
+#         os.makedirs(vectors_directory)
+    
+#     # Save the vector store for each file with the file name
+#     vector_store.save_local(os.path.join(vectors_directory, file_name + "_faiss_index"))
 
-# Function to save search history
-def save_search_history(query, response):
-    history_item = {"query": query, "response": response}
-    search_history.append(history_item)
-    # Save to file after appending
-    save_search_history_to_file()
-
-# Function to load search history from the CSV file
-def load_search_history_from_file():
-    with open(history_file, mode='r', newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        next(reader)  # Skip header row
-        for row in reader:
-            search_history.append({"query": row[0], "response": row[1]})
-
-# Function to display search history
-def display_search_history():
-    load_search_history_from_file()
-    st.sidebar.subheader("Search History")
-    for item in search_history:
-        st.sidebar.write(
-            f"<span style='color: red'><b>Query:</b></span> {item['query']}<br><span style='color: red'><b>Response:</b></span> {item['response']}<br>",
-            unsafe_allow_html=True
-        )
-
-# Function to delete chat history from the CSV file
-def delete_chat_history():
-    with open(history_file, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Query", "Response"])  # Rewrite header row only
-
-# Function to handle user input and chatbot response
-def user_input(user_question,pdf_docs):
-    embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
-    new_db = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    docs = new_db.similarity_search(user_question)
-    chain = get_conversational_chain()
-    response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
-    save_search_history(user_question, response["output_text"])
-    st.write("Reply: ")
-    st.write(response["output_text"])
-    # pdf_viewer_with_highlighting(pdf_docs, response_text=response["output_text"])
-    # pdf_viewer_with_highlighting( response["output_text"])
-    # pdf_viewer_with_highlighting(pdf_docs, response=response["output_text"])
-
-
-# Function to view PDF with highlighting
-
-def highlight_matching_text(pdf_docs, response_text=None):
-    st.title("PDF Viewer with Text Highlighting")
-
-    st.sidebar.header("Options")
-
-    if pdf_docs:
-        st.sidebar.text("Files uploaded successfully!")
-        for file_uploaded in pdf_docs:
-            st.sidebar.text(f"File name: {file_uploaded.name}")
-            st.sidebar.text(f"File size (bytes): {file_uploaded.size}")
-
-    if response_text:
-        search_text = response_text
-    else:
-        search_text = st.sidebar.text_input("Enter text to highlight")
-
-    if pdf_docs:
-        st.write("PDF Preview:")
-        for file_uploaded in pdf_docs:
-            pdf_data = file_uploaded.read()
-
-            if search_text:
-                doc = nlp(search_text.lower())  # Process the response text with spaCy
-                highlighted_pdf_data = highlight_matching_text_spacy(pdf_data, doc)
-                st.write(f'<iframe src="data:application/pdf;base64,{base64.b64encode(highlighted_pdf_data).decode()}" width="100%" height="600" style="border: none;"></iframe>', unsafe_allow_html=True)
-            else:
-                st.write(f'<iframe src="data:application/pdf;base64,{base64.b64encode(pdf_data).decode()}" width="100%" height="600" style="border: none;"></iframe>', unsafe_allow_html=True)
-    else:
-        st.warning("Please upload a PDF file.")
-
-# # Here I try the Manhatten distance 
-# def highlight_matching_text_spacy(pdf_data, response_text, threshold=10):
-#     pdf_doc = fitz.open(stream=pdf_data, filetype="pdf")
-
-#     # Process the chatbot response text with spaCy
-#     response_doc = nlp(response_text)
-
-#     # Initialize a flag to track if a highly similar sentence has been found
-#     found_similar_sentence = False
-
-#     for page_num in range(len(pdf_doc)):
-#         # If a highly similar sentence has been found, stop processing subsequent pages
-#         if found_similar_sentence:
-#             break
-
-#         page = pdf_doc.load_page(page_num)
-#         page_text = page.get_text()
-
-#         # Process the PDF page text with spaCy
-#         page_doc = nlp(page_text)
-
-#         # Initialize variables to store the most similar sentence and its similarity score
-#         most_similar_sentence = None
-#         max_similarity_score = -1
-
-#         # Iterate through sentences in the PDF page text
-#         for page_sentence in page_doc.sents:
-#             # Calculate the similarity between each sentence in the PDF page text and the chatbot response
-#             similarity_score = response_doc.similarity(page_sentence)
-            
-#             # Calculate Manhattan distance between sentence vectors
-#             manhattan_distance = cityblock(response_doc.vector, page_sentence.vector)
-
-#             # Update the most similar sentence and its similarity score if needed
-#             if similarity_score > max_similarity_score:
-#                 most_similar_sentence = page_sentence
-#                 max_similarity_score = similarity_score
-
-#             # If a highly similar sentence is found and the score is within the specified range, set the flag and break out of the loop
-#             if 99.9 >= max_similarity_score >= 95.99 and manhattan_distance < threshold:
-#                 found_similar_sentence = True
-#                 break
-
-#         if most_similar_sentence:
-#             # Highlight the corresponding text instance in the PDF page
-#             text_instances = page.search_for(most_similar_sentence.text)
-#             for inst in text_instances:
-#                 highlight = page.add_rect_annot(inst)
-#                 highlight.set_colors({"stroke": (1, 0, 0), "fill": (1, 0, 0)})
-
-#     highlighted_pdf_data = pdf_doc.write()
-#     pdf_doc.close()
-#     return highlighted_pdf_data
-
-def highlight_matching_text_spacy(pdf_data, response_text, threshold=0.79):
-    pdf_doc = fitz.open(stream=pdf_data, filetype="pdf")
-
-    # Process the chatbot response text with spaCy outside the loop
-    response_doc = nlp(response_text)
-
-    highlighted_pdf_data = pdf_doc
-
-    for page_num in range(len(pdf_doc)):
-        page = pdf_doc.load_page(page_num)
-        page_text = page.get_text()
-
-        # Process the PDF page text with spaCy
-        page_doc = nlp(page_text)
-
-        # Iterate through sentences in the PDF page text
-        for page_sentence in page_doc.sents:
-            # Calculate cosine similarity between sentence vectors
-            cosine_similarity = response_doc.vector @ page_sentence.vector / (np.linalg.norm(response_doc.vector) * np.linalg.norm(page_sentence.vector))
-
-            # If cosine similarity meets the threshold, highlight the text
-            if cosine_similarity >= threshold:
-                text_instances = page.search_for(page_sentence.text)
-                for inst in text_instances:
-                    highlight = page.add_rect_annot(inst)
-                    highlight.set_colors({"stroke": (1, 0, 0), "fill": (1, 0, 0)})
-
-    highlighted_pdf_data = pdf_doc.write()
-    pdf_doc.close()
-    return highlighted_pdf_data
-
-
-# Function to load and return the conversational chain
+@st.cache_resource
 def get_conversational_chain():
+
     prompt_template = """
     Answer the question as detailed as possible from the provided context, make sure to provide all the details, if the answer is not in
     provided context just say, "answer is not available in the context", don't provide the wrong answer\n\n
@@ -327,6 +182,70 @@ def get_conversational_chain():
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
 
     return chain
+
+# Function to save search history
+def save_search_history(query, response):
+    history_item = {"query": query, "response": response}
+    search_history.append(history_item)
+    # Save to file after appending
+    save_search_history_to_file()
+
+# Function to load search history from the CSV file
+def load_search_history_from_file():
+    with open(history_file, mode='r', newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header row
+        for row in reader:
+            search_history.append({"query": row[0], "response": row[1]})
+
+    
+# # Function to display search history
+# def display_search_history():
+#     st.subheader('Search History')
+#     for item in search_history:
+#         st.write(f"Query: {item['query']}, Response: {item['response']}")
+
+# Function to display search history
+# def display_search_history():
+#     load_search_history_from_file()
+#     st.subheader('Search History')
+#     for item in search_history:
+#         st.write(f"Query: {item['query']}")
+#         st.write(f"Response: {item['response']}")
+# Function to display search history
+def display_search_history():
+    load_search_history_from_file()
+    # st.subheader('Search History')
+    # for item in search_history:
+    #     st.write(f"Query: {item['query']}, Response: {item['response']}")
+    st.sidebar.subheader("Search History")
+    for item in search_history:
+        st.sidebar.write(
+            f"<span style='color: red'><b>Query:</b></span> {item['query']}<br><span style='color: red'><b>Response:</b></span> {item['response']}<br>",
+            unsafe_allow_html=True
+        )
+# Function to delete chat history from the CSV file
+def delete_chat_history():
+    with open(history_file, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Query", "Response"])  # Rewrite header row only
+
+# Function to handle user input and chatbot response
+def user_input(user_question):
+    embeddings = GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
+    
+    # new_db = FAISS.load_local("faiss_index", embeddings)
+    new_db = FAISS.load_local("faiss_index", embeddings,allow_dangerous_deserialization=True)
+    docs = new_db.similarity_search(user_question)
+
+    chain = get_conversational_chain()
+    
+    response = chain({"input_documents":docs, "question": user_question}, return_only_outputs=True)
+
+    save_search_history(user_question, response["output_text"])
+    st.write("Reply: ", response["output_text"])
+
+
 
 # Main function
 def main():
@@ -365,15 +284,14 @@ def main():
     st.markdown('<p class="header-style">📄 Chat with Documents  💁‍♂️</p>', unsafe_allow_html=True)
     # Layout adjustments
     col1, col2 = st.columns([3, 2])
-    
+    with col1:
+        st.markdown('<p class="big-font">Ask a Question:</p>', unsafe_allow_html=True)
+        user_question = st.text_input("", placeholder="Type your question here...", help="Type your question and press enter.")
+        if user_question:
+            user_input(user_question)
     with col2:
         st.markdown('<p class="big-font">Upload:</p>', unsafe_allow_html=True)
-
-
-        # file upload for main
         pdf_docs = st.file_uploader("Upload PDFs", accept_multiple_files=True, help="Upload PDFs from which you want to fetch answers.", type=['pdf'])
-        
-
         use_ocr = st.checkbox("Use OCR")
         if use_ocr:
             ocr_files = pdf_docs
@@ -398,26 +316,21 @@ def main():
                             st.error("No text chunks found.")
                     else:
                         st.error("No text extracted from the documents.")
-    with col1:
-        st.markdown('<p class="big-font">Ask a Question:</p>', unsafe_allow_html=True)
-        user_question = st.text_input("", placeholder="Type your question here...", help="Type your question and press enter.")
-        if user_question:
-            user_input(user_question,pdf_docs)
 
-        st.sidebar.image("logo.jpeg")
+        #st.sidebar.image("logo.jpeg")
         st.sidebar.header('Menu:')
+        # view_search_history = st.sidebar.button("View Search History")
+   
+        # if st.button("View Search History"):
+        #     display_search_history()
+        # if st.button("Delete Chat History"):
+        #     delete_chat_history()
+        #     st.success("Chat history deleted successfully.")
         if st.sidebar.button("Delete Chat History"):
             delete_chat_history()
             st.sidebar.success("Chat history deleted successfully.")
         if st.sidebar.button("View Search History"):
             display_search_history()
-
-    # pdf_viewer_with_highlighting(pdf_docs)
-    if user_question:
-        response_text = search_history[-1]['response'] if search_history else None
-        highlight_matching_text(pdf_docs, response_text=response_text)
-
-
-
 if __name__ == "__main__":
     main()
+
