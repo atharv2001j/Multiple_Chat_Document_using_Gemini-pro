@@ -54,4 +54,6 @@ The "Chat with Multiple Documents using Gemini-Pro" project is designed to enhan
 
 3. **Corporate Documentation**:
    - Employees can search through company policies, manuals, and reports to find specific information, improving productivity and knowledge management.
+  
+DEMO VIDEO : https://www.loom.com/share/312528b52c83446aa5a1a26be0c43976?sid=7cc01098-2a4e-4338-874b-7bd3e5fbf936
 
